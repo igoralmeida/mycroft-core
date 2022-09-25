@@ -359,6 +359,7 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
         # Signal statuses
         self._stop_signaled = False
         self._listen_triggered = False
+        self._listen_to_wav = None        # None or a file path
 
         self._account_id = None
 
@@ -525,6 +526,11 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
     def trigger_listen(self):
         """Externally trigger listening."""
         LOG.debug('Listen triggered from external source.')
+        self._listen_triggered = True
+
+    def trigger_feed_wav(self, filepath):
+        LOG.debug('Listen triggered for wav file.')
+        self._listen_to_wav = filepath
         self._listen_triggered = True
 
     def _upload_wakeword(self, audio, metadata):
@@ -733,12 +739,23 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
         # Notify system of recording start
         emitter.emit("recognizer_loop:record_begin")
 
-        frame_data = self._record_phrase(
-            source,
-            sec_per_buffer,
-            stream,
-            ww_frames
-        )
+        frame_data = None
+        if self._listen_to_wav is not None:
+            LOG.info('going to read a wav file')
+            import wave
+            with wave.open(self._listen_to_wav, 'rb') as wd:
+                frame_data = wd.readframes(-1)
+            LOG.info('done reading')
+            self._listen_to_wav = None
+
+        else:
+            frame_data = self._record_phrase(
+                source,
+                sec_per_buffer,
+                stream,
+                ww_frames
+            )
+
         audio_data = self._create_audio_data(frame_data, source)
         emitter.emit("recognizer_loop:record_end")
         if self.save_utterances:

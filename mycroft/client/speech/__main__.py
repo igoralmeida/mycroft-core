@@ -135,6 +135,29 @@ def handle_mic_listen(_):
     loop.responsive_recognizer.trigger_listen()
 
 
+def handle_raw_wav(msg):
+    import base64
+    encoded_frames = msg.data['filebytes']
+    data = base64.b64decode(encoded_frames)
+
+    import tempfile
+    import os
+    tmpdir = '/tmp/mycroft-tmp-files'
+    try:
+        os.mkdir(tmpdir)
+    except FileExistsError:
+        pass
+    fd_raw, fname_raw = tempfile.mkstemp(prefix='mycroft', dir=tmpdir)
+    os.write(fd_raw, data)
+    os.close(fd_raw)
+
+    fname_wav = fname_raw + '.wav'
+
+    import audiofile
+    audiofile.convert_to_wav(fname_raw, fname_wav)
+    loop.responsive_recognizer.trigger_feed_wav(fname_wav)
+
+
 def handle_mic_get_status(event):
     """Query microphone mute status."""
     data = {'muted': loop.is_muted()}
@@ -208,6 +231,7 @@ def connect_bus_events(bus):
     bus.on('mycroft.mic.unmute', handle_mic_unmute)
     bus.on('mycroft.mic.get_status', handle_mic_get_status)
     bus.on('mycroft.mic.listen', handle_mic_listen)
+    bus.on('mycroft.mic.recordedfile', handle_raw_wav)
     bus.on("mycroft.paired", handle_paired)
     bus.on('recognizer_loop:audio_output_start', handle_audio_start)
     bus.on('recognizer_loop:audio_output_end', handle_audio_end)
